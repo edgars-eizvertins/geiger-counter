@@ -24,17 +24,23 @@
 
 
 #include <SPI.h>
+#include <LiquidCrystal.h>
 #define LOG_PERIOD 15000  //Logging period in milliseconds, recommended value 15000-60000.
 #define MAX_PERIOD 60000  //Maximum logging period without modifying this sketch
 
 unsigned long counts;     //variable for GM Tube events
 unsigned long cpm;        //variable for CPM
+unsigned long maxCpm;        //variable for CPM
+
 unsigned int multiplier;  //variable for calculation CPM in this sketch
 unsigned long previousMillis;  //variable for time measurement
+const byte geigerInterruptPin = 2;
 
 const double counterNumber = 151;
 double microSvPerHour;
+double maxMicroSvPerHour;
 
+LiquidCrystal lcd(12, 11, 6, 5, 4, 3);
 
 void tube_impulse(){       //subprocedure for capturing events from Geiger Kit
   counts++;
@@ -43,10 +49,22 @@ void tube_impulse(){       //subprocedure for capturing events from Geiger Kit
 void setup(){             //setup subprocedure 
   counts = 0;
   cpm = 0;
+  maxCpm = 0;
   microSvPerHour = 0;
+  maxMicroSvPerHour = 0;
   multiplier = MAX_PERIOD / LOG_PERIOD;      //calculating multiplier, depend on your log period
   Serial.begin(9600);
-  attachInterrupt(0, tube_impulse, FALLING); //define external interrupts 
+  
+  Serial.println(digitalPinToInterrupt(geigerInterruptPin));
+  attachInterrupt(digitalPinToInterrupt(geigerInterruptPin), tube_impulse, FALLING); //define external interrupts 
+
+  lcd.clear();
+  
+  lcd.begin(16, 2);
+  lcd.print("     Hello!");
+  lcd.setCursor(0, 1);
+  lcd.print("   Loading...");
+  
   Serial.println("Start");
 }
 
@@ -55,16 +73,37 @@ void loop(){                                 //main cycle
   if(currentMillis - previousMillis > LOG_PERIOD){
     previousMillis = currentMillis;
     cpm = counts * multiplier;
+    if (cpm > maxCpm)
+      maxCpm = cpm;
 
     microSvPerHour = cpm / counterNumber;
+    if (microSvPerHour > maxMicroSvPerHour)
+      maxMicroSvPerHour = microSvPerHour;
     
     Serial.print(cpm);
     Serial.println(" cpm");
 
-    Serial.print(microSvPerHour);
-    Serial.println(" micro Sievert per hour");
+    lcd.clear();
+
+    char bufferString [18];
+  
+    lcd.setCursor(0, 0);    
+    sprintf(bufferString, "%4u", cpm); 
+    lcd.print(bufferString);
+    
+    lcd.setCursor(5, 0);    
+    sprintf(bufferString, "/%4u", maxCpm);
+    lcd.print(bufferString);    
+    
+    lcd.setCursor(13, 0);
+    lcd.print("cpm");
+    
+    lcd.setCursor(0, 1);
+    lcd.print(microSvPerHour);
+    
+    lcd.setCursor(10, 1);
+    lcd.print("mkSv/h");
     
     counts = 0;
-  }
-  
+  }  
 }
